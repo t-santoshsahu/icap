@@ -50,6 +50,7 @@ func ReadRequest(b *bufio.ReadWriter) (req *Request, err error) {
 	// Read first line.
 	var s string
 	s, err = tp.ReadLine()
+	fmt.Println("line: ", s)
 	if err != nil {
 		if err == io.EOF {
 			err = io.ErrUnexpectedEOF
