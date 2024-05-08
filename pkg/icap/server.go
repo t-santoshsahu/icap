@@ -9,7 +9,9 @@ package icap
 import (
 	"bufio"
 	"bytes"
+	"crypto/tls"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"net/http"
@@ -103,7 +105,10 @@ func (c *conn) serve() {
 
 	w, err := c.readRequest()
 	if err != nil {
-		log.Println("error while reading request:", err)
+		if err != io.ErrUnexpectedEOF {
+			log.Println("error while reading request:", err)
+		}
+
 		c.rwc.Close()
 		return
 	}
@@ -135,6 +140,31 @@ func (srv *Server) ListenAndServe() error {
 		return e
 	}
 	return srv.Serve(l)
+}
+
+// ListenAndServeSSL listens on the TCP network address srv.Addr and then
+// calls Serve to handle requests on incoming connections.  If
+// srv.Addr is blank, ":1344" is used.
+func (srv *Server) ListenAndServeSSL(cert, key string) error {
+	addr := srv.Addr
+	if addr == "" {
+		addr = ":1344"
+	}
+	cer, err := tls.LoadX509KeyPair(cert, key)
+	if err != nil {
+		log.Println(err)
+		return err
+	}
+
+	config := &tls.Config{Certificates: []tls.Certificate{cer}}
+	ln, err := tls.Listen("tcp", addr, config)
+	if err != nil {
+		log.Println(err)
+		return err
+	}
+	defer ln.Close()
+
+	return srv.Serve(ln)
 }
 
 // Serve accepts incoming connections on the Listener l, creating a
@@ -185,4 +215,9 @@ func Serve(l net.Listener, handler Handler) error {
 func ListenAndServe(addr string, handler Handler) error {
 	server := &Server{Addr: addr, Handler: handler}
 	return server.ListenAndServe()
+}
+
+func ListenAndServeSSL(addr string, cert, key string, handler Handler) error {
+	server := &Server{Addr: addr, Handler: handler}
+	return server.ListenAndServeSSL(cert, key)
 }
